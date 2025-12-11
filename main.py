@@ -9,10 +9,30 @@ from decode_logic import *
 from decoder import *
 from fetcher import *
 from opcodes import *
-from PCMover import *
+from ROB import *
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 workspace = f"{current_path}/.workspace/"
+
+class Driver(Module):
+    
+    def __init__(self):
+        super().__init__(ports={})
+
+    @module.combinational
+    def build(self, fetcher: Module):
+        init_reg = RegArray(UInt(1), 1, initializer=[1])
+        # init_cache = SRAM(width = 32, depth = 32, init_file = f"{workspace}/workload.init")
+        # init_cache.name = "init_cache"
+        # init_cache.build(we = Bits(1)(0), re = init_reg[0].bitcast(Bits(1)), wdata = Bits(32)(0), addr = Bits(5)(0))
+
+        with Condition(init_reg[0] == UInt(1)(1)):
+            # user.async_called()
+            init_reg[0] = UInt(1)(0)
+        
+        with Condition(init_reg[0] == UInt(1)(0)):
+            d_call = fetcher.async_called()
+        # return init_cache
 
 def cp_if_exists(src, dst, required):
     if os.path.exists(src):
@@ -29,7 +49,7 @@ def init_workspace(base_path, case):
     cp_if_exists(f'{base_path}/{case}.config', f'{workspace}/workload.config', False)
     cp_if_exists(f'{base_path}/{case}.sh', f'{workspace}/workload.sh', False)
 
-def build_cpu():
+def build_cpu(depth_log: int):
     init_workspace(f"{current_path}/workloads", "0to100")
 
     with open(f'{workspace}/workload.config') as f:
@@ -41,31 +61,53 @@ def build_cpu():
         value = value[2:]
         open(f'{workspace}/workload.init', 'w').write(value)
 
-    sys = SysBuilder("Tomasulo CPU")
+    sys = SysBuilder("Tomasulo-CPU")
 
     with sys:
-        is_jump_or_branch = Bits(1)(0)
-        is_default = Bits(1)(1)
-        result = Bits(32)(0)
-        fetch_valid = Bits(1)(0)
-        predict_result = Bits(1)(0)
         decode_valid = Bits(1)(0)
 
-        pcMover = PCMover()
-        pc_reg = pcMover.build(
-            is_jump_or_branch = is_jump_or_branch,
-            is_default = is_default,
-            result = result,
-            fetch_valid = fetch_valid,
-            predict_result = predict_result
-            )
+        icache = SRAM(width=32, depth = 1<<depth_log, init_file = f"{workspace}/workload.exe") # 存储指令
+        icache.name = "icache"
         
-        decoder = Decoder()
-        decode_valid = decoder.build()
+        # rob = ROB()
+        # rob.build()
 
+        decoder = Decoder()
         fetcher = Fetcher()
-        fetch_valid = fetcher.build(
-            pc_addr = pc_reg[0],
+        fetcher_impl = FetcherImpl()
+
+        pc_reg, pc_addr = fetcher.build()
+
+        fetch_valid = fetcher_impl.build(
+            depth_log = depth_log,
+            pc_reg = pc_reg,
+            pc_addr = pc_addr,
             decoder = decoder,
-            decode_valid = decode_valid
+            decode_valid = decode_valid,
+            icache = icache
         )
+
+        decode_valid = decoder.build(rdata = icache.dout)
+
+        driver = Driver()
+        driver.build(fetcher)
+    
+    print(sys)
+    conf = config(
+        verilog=utils.has_verilator(),
+        sim_threshold=100,
+        idle_threshold=100,
+        resource_base='',
+        fifo_depth=1,
+    ) 
+
+    simulator_path, verilog_path = elaborate(sys, **conf)
+
+    raw = utils.run_simulator(simulator_path)
+    with open(f'{workspace}/simulation.log', 'w') as f:
+        f.write(raw)
+    print(f"Simulation log saved to {workspace}/simulation.log")
+
+depth_log = 16
+if __name__ == "__main__":
+    build_cpu(depth_log)

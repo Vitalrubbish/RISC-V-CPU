@@ -1,3 +1,7 @@
+from assassyn.frontend import *
+from opcodes import *
+from instruction import *
+
 def decode_logic(instruction):
 
     views = {i: i(instruction) for i in supported_types} # 这里的 views 指的是什么

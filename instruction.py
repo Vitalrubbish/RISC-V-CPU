@@ -223,6 +223,7 @@ supported_opcodes = [
     ("jalr", (0b1100111, 0b000, RV32I_ALU.ALU_ADD, (RV32I_ALU.ALU_TRUE, False), None, None), IInstruction),
     ("addi", (0b0010011, 0b000, RV32I_ALU.ALU_ADD, None, None, None), IInstruction),
 
+    # Permenantly stop here to comprehend the total structure in a rapid way
     ('lw'    , (0b0000011, 0b010, RV32I_ALU.ALU_ADD, None, None, None), IInstruction),
     ('lbu'   , (0b0000011, 0b100, RV32I_ALU.ALU_ADD, None, None, None), IInstruction),
 
@@ -238,7 +239,10 @@ supported_opcodes = [
     ('bgeu' , (0b1100011, 0b111, RV32I_ALU.ALU_CMP_LTU, True), BInstruction),
     ('bltu' , (0b1100011, 0b110, RV32I_ALU.ALU_CMP_LTU, False), BInstruction),
 
+    ('csrrs'   , (0b1110011, 0b010, RV32I_ALU.ALU_OR, None ,None ,None), IInstruction),
     ('auipc' , (0b0010111, RV32I_ALU.ALU_ADD), UInstruction),
+    ('csrrw' , (0b1110011, 0b001, RV32I_ALU.ALU_ADD, None,None,None), IInstruction),
+    ('csrrwi' , (0b1110011, 0b101, RV32I_ALU.ALU_ADD, None,None,None), IInstruction),
 
     ('slli' , (0b0010011, 0b001, RV32I_ALU.ALU_SLL, None, None , 0b000000), IInstruction),
     ('sll'  , (0b0110011, 0b001, 0b0000000, RV32I_ALU.ALU_SLL), RInstruction),
@@ -247,6 +251,12 @@ supported_opcodes = [
     ('sltu' , (0b0110011, 0b011, 0b0000000, RV32I_ALU.ALU_CMP_LTU), RInstruction),
     ('srl'  , (0b0110011, 0b101, 0b0000000, RV32I_ALU.ALU_SRA_U), RInstruction),
     ('sra'  , (0b0110011, 0b101, 0b0100000, RV32I_ALU.ALU_SRA), RInstruction),
+
+    #todo: mret is not supported for setting the MPIE in CSR(mstatus)
+    ('mret' , (0b1110011, 0b000, 0b0011000,RV32I_ALU.ALU_ADD,0b00010), RInstruction),
+    #we have only a sigle thread, so we don't need to deal with 'fence' instruction
+    ('fence' , (0b0001111, 0b000, RV32I_ALU.ALU_ADD, None,None,None), IInstruction),
+    ('ecall' , (0b1110011, 0b000, RV32I_ALU.ALU_NONE, None,0b000000000000,None), IInstruction),
     
     ('and' , (0b0110011, 0b111, 0b0000000, RV32I_ALU.ALU_AND), RInstruction),
     ('andi' , (0b0010011, 0b111, RV32I_ALU.ALU_AND, None,None,None), IInstruction),
