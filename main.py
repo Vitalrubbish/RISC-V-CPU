@@ -69,8 +69,8 @@ def build_cpu(depth_log: int):
         icache = SRAM(width=32, depth = 1<<depth_log, init_file = f"{workspace}/workload.exe") # 存储指令
         icache.name = "icache"
         
-        # rob = ROB()
-        # rob.build()
+        rob = ROB()
+        rob.build()
 
         decoder = Decoder()
         fetcher = Fetcher()
@@ -87,7 +87,7 @@ def build_cpu(depth_log: int):
             icache = icache
         )
 
-        decode_valid = decoder.build(rdata = icache.dout)
+        decode_valid = decoder.build(rob = rob, rdata = icache.dout)
 
         driver = Driver()
         driver.build(fetcher)
