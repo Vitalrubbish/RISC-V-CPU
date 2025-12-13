@@ -26,25 +26,27 @@ class FetcherImpl(Downstream):
         pc_reg: Value,
         pc_addr: Value,
         decoder: Decoder,
-        decode_valid: Value,
+        decode_valid_arr: Array,
         icache: SRAM
     ):
+        decode_valid = decode_valid_arr[0]
         FD_buffer_size = RegArray(Bits(32), 1, initializer = [0])
         
         current_size = FD_buffer_size[0].bitcast(Int(32))
-        fetch_valid = (current_size < Int(32)(5))
+        fetch_valid = (current_size < Int(32)(3))
 
         log("fetch_valid : {} | decode_valid : {} | fetch_addr: 0x{:05x}", fetch_valid, decode_valid, pc_addr) # 是否抓取指令，正在抓取的指令地址是什么        
 
         delta = Int(32)(0)
-        delta = (decode_valid).select(delta - Int(32)(1), delta - Int(32)(1)) # 暂时这么写
+        delta = (decode_valid).select(delta - Int(32)(1), delta)
         delta = (fetch_valid).select(delta + Int(32)(1), delta)
         
         next_size = current_size + delta
         FD_buffer_size[0] = next_size.bitcast(Bits(32))
 
         with Condition(fetch_valid):
-            decoder.async_called(fetch_addr = pc_addr)
+            d_call = decoder.async_called(fetch_addr = pc_addr)
+            d_call.bind.set_fifo_depth(fetch_addr = 3)
             pc_reg[0] = (pc_addr.bitcast(Int(32)) + Int(32)(4)).bitcast(Bits(32))
         with Condition(~fetch_valid):
             pc_reg[0] = pc_addr

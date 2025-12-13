@@ -64,13 +64,19 @@ def build_cpu(depth_log: int):
     sys = SysBuilder("Tomasulo-CPU")
 
     with sys:
-        decode_valid = Bits(1)(0)
+        # implementing register file
+        rf_value = RegArray(Bits(32), 32)
+        rf_recorder = RegArray(Bits(5), 32)
+        rf_has_recorder = RegArray(Bits(1), 32)
+
+        decode_valid = RegArray(Bits(1), 1)
+        rob_full = RegArray(Bits(1), 1)
 
         icache = SRAM(width=32, depth = 1<<depth_log, init_file = f"{workspace}/workload.exe") # 存储指令
         icache.name = "icache"
         
         rob = ROB()
-        rob.build()
+        rob.build(rob_full, rf_value_array = rf_value, rf_recorder_array = rf_recorder, rf_has_recorder_array = rf_has_recorder)
 
         decoder = Decoder()
         fetcher = Fetcher()
@@ -83,11 +89,11 @@ def build_cpu(depth_log: int):
             pc_reg = pc_reg,
             pc_addr = pc_addr,
             decoder = decoder,
-            decode_valid = decode_valid,
+            decode_valid_arr = decode_valid,
             icache = icache
         )
 
-        decode_valid = decoder.build(rob = rob, rdata = icache.dout)
+        decoder.build(rob = rob, rdata = icache.dout, rob_full_array = rob_full, decode_valid_array = decode_valid)
 
         driver = Driver()
         driver.build(fetcher)
@@ -95,8 +101,8 @@ def build_cpu(depth_log: int):
     print(sys)
     conf = config(
         verilog=utils.has_verilator(),
-        sim_threshold=100,
-        idle_threshold=100,
+        sim_threshold=20,
+        idle_threshold=20,
         resource_base='',
         fifo_depth=1,
     ) 

@@ -288,7 +288,8 @@ decoder_signals = Record(
     link_pc = Bits(1),
     mem_ext = Bits(2),
     is_memory_write = Bits(1),
-    is_reg_write = Bits(1)
+    is_reg_write = Bits(1),
+    is_load_or_store = Bits(1),
 )
 
 supported_types = [RInstruction, IInstruction, BInstruction, UInstruction, JInstruction, SInstruction]

@@ -83,6 +83,8 @@ def decode_logic(instruction):
     is_branch = is_type[BInstruction] | is_type[JInstruction] | eqs['jalr'] | eqs['mret']
     is_reg_write = is_type[RInstruction] | is_type[IInstruction] | is_type[JInstruction] | eqs['lw'] | eqs['lbu'] | eqs['jalr'] # Newly inserted, waiting to be verified
     is_memory_write = is_type[SInstruction] # Newly inserted, waiting to be verified
+    is_load = eqs['lw'] | eqs['lbu']
+    is_load_or_store = is_load | is_memory_write
     is_offset_branch = is_type[BInstruction] | eqs['jal']
     link_pc = eqs['jalr'] | eqs['jal']
     is_pc_calc = eqs['auipc']
@@ -116,6 +118,7 @@ def decode_logic(instruction):
         alu=alu,
         cond=cond,
         flip=flip,
+        is_load_or_store = is_load_or_store,  # Newly inserted, waiting to be verified  
         is_reg_write = is_reg_write,          # Newly inserted, waiting to be verified
         is_memory_write = is_memory_write,    # Newly inserted, waiting to be verified
         is_branch=is_branch,
