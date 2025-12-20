@@ -8,32 +8,26 @@ class Decoder(Module):
 
     def __init__(self):
         super().__init__(ports = {
+            "receive": Port(Bits(1)),
             "fetch_addr": Port(Bits(32))
         })
         self.name = "D"
 
     @module.combinational
-    def build(self, rob: ROB, rdata: Array, rob_full_array: Array, decode_valid_array: Array):
-        fetch_addr = self.pop_all_ports(True)
+    def build(self, rob: ROB, rdata: Array, rob_full_array: Array, decode_valid_array: Array, clear_signal_array: Array):
+        receive, fetch_addr = self.pop_all_ports(True)
         inst = rdata[0].bitcast(Bits(32))
 
-        decode_valid = ~rob_full_array[0]
-        decode_valid_array[0] = decode_valid
+        rob_full = rob_full_array[0]
+        clear = clear_signal_array[0]
 
-        log("raw: 0x{:08x}  | addr: 0x{:05x} | decode_valid: {}", inst, fetch_addr, decode_valid) # 正在解码的指令
+        sending = receive & ~clear
 
-        signals = decode_logic(inst)
-        is_ebreak_type = (signals.alu == Bits(16)(1 << RV32I_ALU.ALU_NONE))
+        log("raw: 0x{:08x}  | addr: 0x{:05x} | sending: {}", inst, fetch_addr, sending)
 
-        # with Condition(is_ebreak_type):
-        #    log("ebreak")
-        #    finish()
-
-        with Condition(decode_valid):
-            rob.async_called(
-                signals = signals,
-                addr = fetch_addr,
-            )
-
-        return decode_valid
+        rob.async_called(
+            receive = sending,
+            signals = decode_logic(inst),
+            addr = fetch_addr,
+        )
 

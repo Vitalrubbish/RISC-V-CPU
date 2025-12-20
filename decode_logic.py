@@ -75,7 +75,10 @@ def decode_logic(instruction):
     with Condition(~supported):
         view = views[RInstruction].view()
         log("Unsupported instruction: opcode = 0x{:x} func3: 0x{:x} func7: 0x{:x}", view.opcode, view.func3, view.func7)
-        assume(Bits(1)(0)) # 等价于 C++ 中的 assert(false)
+        # assume(Bits(1)(0)) 等价于 C++ 中的 assert(false)
+
+    alu = supported.select(alu, Bits(RV32I_ALU.CNT)(1 << RV32I_ALU.ALU_NONE))
+    cond = supported.select(cond, Bits(RV32I_ALU.CNT)(1 << RV32I_ALU.ALU_TRUE))
 
     memory = concat(eqs['sw'], eqs['lw'] | eqs['lbu'])
     mem_ext = concat(eqs['lbu'], eqs['lbu'])

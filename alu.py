@@ -5,23 +5,48 @@ class ALU(Module):
 
     def __init__(self):
         super().__init__(ports = {
-            "rob_index": Bits(32),
-            "alu_a": Bits(32),
-            "alu_b": Bits(32),
-            "calc_type": Bits(RV32I_ALU.CNT)
-        })
+            "valid": Port(Bits(1)),
+            "rob_index": Port(Bits(5)),
+            "a": Port(Bits(32)),
+            "b": Port(Bits(32)),
+            "alu_a": Port(Bits(32)),
+            "alu_b": Port(Bits(32)),
+            "cond": Port(Bits(RV32I_ALU.CNT)),
+            "flip": Port(Bits(1)),
+            "is_branch": Port(Bits(1)),
+            "calc_type": Port(Bits(RV32I_ALU.CNT)),
+            "pc_addr": Port(Bits(32)),
+        }, no_arbiter = True)
         self.name = "ALU"
 
     @module.combinational
-    def build(self):
-        alu_a, alu_b, calc_type = self.pop_all_ports(True)
+    def build(
+        self,
+        rob_index_array: Array,
+        result_array: Array,
+        pc_result_array: Array,
+        signal_array: Array,
+    ):
+        (
+            valid,
+            rob_index,
+            a,
+            b,
+            alu_a,
+            alu_b,
+            cond,
+            flip,
+            is_branch,
+            calc_type,
+            pc_addr
+        ) = self.pop_all_ports(True)
 
         results = [Bits(32)(0)] * RV32I_ALU.CNT
 
         adder_result = (alu_a.bitcast(Int(32)) + alu_b.bitcast(Int(32))).bitcast(Bits(32))
-        le_result = (alu_a.bitcast(Int(32)) < alu_b.bitcast(Int(32))).select(Bits(32)(1), Bits(32)(0))
-        eq_result = (alu_a == alu_b).select(Bits(32)(1), Bits(32)(0))
-        leu_result = (alu_a < alu_b).select(Bits(32)(1), Bits(32)(0))
+        le_result = (a.bitcast(Int(32)) < b.bitcast(Int(32))).select(Bits(32)(1), Bits(32)(0))
+        eq_result = (a == b).select(Bits(32)(1), Bits(32)(0))
+        leu_result = (a < b).select(Bits(32)(1), Bits(32)(0))
         sra_signed_result = (alu_a.bitcast(Int(32)) >> alu_b[0:4].bitcast(Int(5))).bitcast(Bits(32))
         sub_result = (alu_a.bitcast(Int(32)) - alu_b.bitcast(Int(32))).bitcast(Bits(32))
 
@@ -42,5 +67,21 @@ class ALU(Module):
 
         alu = calc_type
         result = alu.select1hot(*results)
+
+        condition = cond.select1hot(*results)
+        condition = flip.select(~condition, condition)
+
+        new_pc = (pc_addr.bitcast(Int(32)) + Int(32)(4)).bitcast(Bits(32))
+        jump = is_branch.select(condition[0:0], Bits(1)(0))
+        new_pc = jump.select(result, new_pc)
+        
+        rob_index_array[0] = rob_index
+        result_array[0] = result
+        pc_result_array[0] = new_pc
+        signal_array[0] = valid
+
+        with Condition(valid):
+            log("a: 0x{:08x} | b: 0x{:08x} | alu_a: 0x{:08x} | alu_b: 0x{:08x} | result: 0x{:08x} | cond: 0x{:08x} | pc: 0x{:08x} | new_pc: 0x{:08x}",
+            a, b, alu_a, alu_b, result, cond, pc_addr, new_pc)
 
         
