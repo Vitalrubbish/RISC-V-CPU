@@ -11,6 +11,8 @@ class ALU(Module):
             "b": Port(Bits(32)),
             "alu_a": Port(Bits(32)),
             "alu_b": Port(Bits(32)),
+            "link_pc": Port(Bits(1)),
+            "is_jalr": Port(Bits(1)),
             "cond": Port(Bits(RV32I_ALU.CNT)),
             "flip": Port(Bits(1)),
             "is_branch": Port(Bits(1)),
@@ -34,6 +36,8 @@ class ALU(Module):
             b,
             alu_a,
             alu_b,
+            link_pc,
+            is_jalr,
             cond,
             flip,
             is_branch,
@@ -42,6 +46,8 @@ class ALU(Module):
         ) = self.pop_all_ports(True)
 
         results = [Bits(32)(0)] * RV32I_ALU.CNT
+
+        alu_a = is_jalr.select(a, alu_a)
 
         adder_result = (alu_a.bitcast(Int(32)) + alu_b.bitcast(Int(32))).bitcast(Bits(32))
         le_result = (a.bitcast(Int(32)) < b.bitcast(Int(32))).select(Bits(32)(1), Bits(32)(0))
@@ -67,13 +73,15 @@ class ALU(Module):
 
         alu = calc_type
         result = alu.select1hot(*results)
+        calc_result = result
+        result = link_pc.select((pc_addr.bitcast(Int(32)) + Int(32)(4)).bitcast(Bits(32)), result)
 
         condition = cond.select1hot(*results)
         condition = flip.select(~condition, condition)
 
         new_pc = (pc_addr.bitcast(Int(32)) + Int(32)(4)).bitcast(Bits(32))
         jump = is_branch.select(condition[0:0], Bits(1)(0))
-        new_pc = jump.select(result, new_pc)
+        new_pc = jump.select(calc_result, new_pc)
         
         rob_index_array[0] = rob_index
         result_array[0] = result

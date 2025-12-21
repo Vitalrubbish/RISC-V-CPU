@@ -5,7 +5,7 @@ from lsq import *
 from opcodes import *
 from utils import *
 
-ROB_SIZE = 12
+ROB_SIZE = 8
 
 class ROB(Module):
 
@@ -47,7 +47,7 @@ class ROB(Module):
 
         rf_value_array = RegArray(Bits(32), 32)
         rf_recorder_array = RegArray(Bits(5), 32)
-        rf_has_recorder_array = [RegArray(Bits(1), 32) for _ in range(32)]
+        rf_has_recorder_array = [RegArray(Bits(1), 1) for _ in range(32)]
 
         # ROB 自身的性质
         allocated_array = [RegArray(Bits(1), 1) for _ in range(ROB_SIZE)]         # ROB 中这一条有没有分配指令
@@ -76,7 +76,7 @@ class ROB(Module):
 
         calc_result_array = RegArray(Bits(32), ROB_SIZE)      # 存储 alu 计算出的 32 位结果
         load_result_array = RegArray(Bits(32), ROB_SIZE)      # 存储 load 出来的 32 位结果
-        pc_result_array = RegArray(Bits(32), ROB_SIZE)
+        pc_result_array = [RegArray(Bits(32), 1) for _ in range(ROB_SIZE)]
 
         addr_array = RegArray(Bits(32), ROB_SIZE)             # 存储指令的地址
 
@@ -109,38 +109,44 @@ class ROB(Module):
         head_ptr = head[0]
         tail_ptr = tail[0]
 
+        head_idx = head_ptr.bitcast(Bits(32))[0:2]
+        tail_idx = tail_ptr.bitcast(Bits(32))[0:2]
+
         updated_tail_ptr = tail_ptr + Int(32)(1)
         updated_tail_ptr = (updated_tail_ptr == Int(32)(ROB_SIZE)).select(Int(32)(0), updated_tail_ptr)
 
         updated_head_ptr = head_ptr + Int(32)(1)
         updated_head_ptr = (updated_head_ptr == Int(32)(ROB_SIZE)).select(Int(32)(0), updated_head_ptr)
+        
+        updated_head_idx = updated_head_ptr.bitcast(Bits(32))[0:2]
 
-        commit = ~rob_empty & read_mux(ready_array, head_ptr, ROB_SIZE, 1)
-        updated_pc_addr = addr_array[updated_head_ptr]
-        is_misprediction = commit & (updated_pc_addr != pc_result_array[head_ptr]) & (updated_head_ptr != tail_ptr)
+        commit = ~rob_empty & read_mux(ready_array, head_idx, ROB_SIZE, 1)
+        updated_pc_addr = addr_array[updated_head_idx]
+        pc_result_val = read_mux(pc_result_array, head_idx, ROB_SIZE, 32)
+        is_misprediction = commit & (updated_pc_addr != pc_result_val) & (updated_head_ptr != tail_ptr)
         should_receive = ~rob_phys_full & receive & (~clear_signal_array[0])
 
         with Condition(should_receive & ~is_misprediction):
-            rd_valid_array[tail_ptr] = has_rd
+            rd_valid_array[tail_idx] = has_rd
 
         with Condition(should_receive & ~is_misprediction & has_rd):
             # rf_recorder_array[rd] = tail_ptr.bitcast(Bits(5)) # Moved to conflict logic
             # write1hot(rf_has_recorder_array, rd, Bits(1)(1)) # Moved to conflict logic
-            rd_array[tail_ptr] = rd
+            rd_array[tail_idx] = rd
 
         with Condition(should_receive & ~is_misprediction & has_rs1):
-            rs1_array[tail_ptr] = rs1
+            rs1_array[tail_idx] = rs1
 
         with Condition(should_receive & ~is_misprediction & has_rs2):
-            rs2_array[tail_ptr] = rs2
+            rs2_array[tail_idx] = rs2
     
         with Condition(should_receive & ~is_misprediction & has_imm):
-            imm_array[tail_ptr] = imm
+            imm_array[tail_idx] = imm
 
-        modify_recorder = ~rob_empty & read_mux(ready_array, head_ptr, ROB_SIZE, 1) & rd_valid_array[head_ptr]
+        modify_recorder = ~rob_empty & read_mux(ready_array, head_idx, ROB_SIZE, 1) & rd_valid_array[head_idx]
         rs_modify_recorder = modify_recorder
         lsq_modify_recorder = modify_recorder
-        modify_value = is_load_or_store_array[head_ptr].select(load_result_array[head_ptr], calc_result_array[head_ptr])
+        modify_value = is_load_or_store_array[head_idx].select(load_result_array[head_idx], calc_result_array[head_idx])
         # log("is_load_or_store_array[head_ptr]: {} | modify_value: 0x{:08x}", is_load_or_store_array[head_ptr], modify_value)
 
         rs_write = should_receive & ~is_misprediction & (~is_load_or_store)
@@ -150,34 +156,34 @@ class ROB(Module):
         with Condition(should_receive & ~is_misprediction):
             log("ROB entry {} allocated", tail_ptr)
             # write1hot(allocated_array, tail_ptr, Bits(1)(1)) # Moved to loop
-            is_branch_array[tail_ptr] = is_branch
-            is_memory_write_array[tail_ptr] = is_memory_write
-            is_reg_write_array[tail_ptr] = is_reg_write
-            addr_array[tail_ptr] = addr
-            is_load_or_store_array[tail_ptr] = is_load_or_store
-            write1hot(ready_array, tail_ptr, Bits(1)(0))
-            is_final_array[tail_ptr] = is_final
+            is_branch_array[tail_idx] = is_branch
+            is_memory_write_array[tail_idx] = is_memory_write
+            is_reg_write_array[tail_idx] = is_reg_write
+            addr_array[tail_idx] = addr
+            is_load_or_store_array[tail_idx] = is_load_or_store
+            write1hot(ready_array, tail_idx, Bits(1)(0))
+            is_final_array[tail_idx] = is_final
             # tail[0] = updated_tail_ptr # Moved to select
 
         rob_index_from_alu = rob_index_array_from_alu[0]
         write_result_from_alu = signal_array_from_alu[0]
-        write_result_from_alu = write_result_from_alu & read_mux(allocated_array, rob_index_from_alu, ROB_SIZE, 1)
+        write_result_from_alu = write_result_from_alu & read_mux(allocated_array, rob_index_from_alu[0:2], ROB_SIZE, 1)
         with Condition(write_result_from_alu):
             log("ROB entry {} received ALU result: 0x{:08x} | pc_result: 0x{:08x}", rob_index_from_alu, result_array_from_alu[0], pc_result_array_from_alu[0])    
-            calc_result_array[rob_index_from_alu] = result_array_from_alu[0]
-            pc_result_array[rob_index_from_alu] = pc_result_array_from_alu[0]
-            write1hot(ready_array, rob_index_from_alu, Bits(1)(1))
+            calc_result_array[rob_index_from_alu[0:2]] = result_array_from_alu[0]
+            write1hot(pc_result_array, rob_index_from_alu[0:2], pc_result_array_from_alu[0])
+            write1hot(ready_array, rob_index_from_alu[0:2], Bits(1)(1))
         
         rob_index_from_lsq = rob_index_array_from_lsq[0]
         write_signal_from_lsq = signal_array_from_lsq[0]
-        write_result_from_lsq = write_signal_from_lsq & read_mux(allocated_array, rob_index_from_lsq, ROB_SIZE, 1)
+        write_result_from_lsq = write_signal_from_lsq & read_mux(allocated_array, rob_index_from_lsq[0:2], ROB_SIZE, 1)
         with Condition(write_result_from_lsq):
             log("ROB entry {} received LSQ result: 0x{:08x} | pc_result: 0x{:08x}", rob_index_from_lsq, result_array_from_lsq[0], pc_result_array_from_lsq[0])
-            load_result_array[rob_index_from_lsq] = result_array_from_lsq[0]
-            pc_result_array[rob_index_from_lsq] = pc_result_array_from_lsq[0]
-            write1hot(ready_array, rob_index_from_lsq, Bits(1)(1))
+            load_result_array[rob_index_from_lsq[0:2]] = result_array_from_lsq[0]
+            write1hot(pc_result_array, rob_index_from_lsq[0:2], pc_result_array_from_lsq[0])
+            write1hot(ready_array, rob_index_from_lsq[0:2], Bits(1)(1))
 
-        modify_rd = rd_valid_array[head_ptr].select(rd_array[head_ptr], Bits(5)(0))
+        modify_rd = rd_valid_array[head_idx].select(rd_array[head_idx], Bits(5)(0))
         recorder = head_ptr
 
         # Logic for rf_has_recorder_array
@@ -190,24 +196,26 @@ class ROB(Module):
 
         with Condition(receive_write):
              write1hot(rf_has_recorder_array, rd, Bits(1)(1))
-             rf_recorder_array[rd] = tail_ptr.bitcast(Bits(5))
+             rf_recorder_array[rd] = tail_idx.bitcast(Bits(5))
              
-        with Condition(commit_write & ~conflict):
+        with Condition(commit_write & ~conflict & ~is_misprediction):
              write1hot(rf_has_recorder_array, modify_rd, Bits(1)(0))
              
         with Condition(modify_recorder & (modify_rd != Bits(5)(0))):
-            # log("RF entry {} update value to 0x{:08x}", modify_rd, modify_value)
+            log("RF entry {} update value to 0x{:08x}", modify_rd, modify_value)
             rf_value_array[modify_rd] = modify_value
     
         with Condition(commit):
-            log("ROB entry {} committed, addr: 0x{:08x}", head_ptr, addr_array[head_ptr])
-        with Condition(~rob_empty & is_final_array[head_ptr]):
+            log("ROB entry {} committed, addr: 0x{:08x}", head_ptr, addr_array[head_idx])
+        with Condition(~rob_empty & is_final_array[head_idx]):
             log("ebreak")
             finish()
 
         with Condition(is_misprediction):
             log("Branch misprediction detected at ROB entry {}", head_ptr)
-            reset_pc_addr_array[0] = pc_result_array[head_ptr]
+            reset_pc_addr_array[0] = pc_result_val
+            for i in range(32):
+                rf_has_recorder_array[i][0] = Bits(1)(0)
 
         # State updates
         head[0] = is_misprediction.select(Int(32)(0), commit.select(updated_head_ptr, head_ptr))
@@ -219,7 +227,7 @@ class ROB(Module):
 
         # log("ROB size updated to {}", new_rob_size)
 
-        rob_full = (new_rob_size > Int(32)(ROB_SIZE // 2))
+        rob_full = (new_rob_size >= Int(32)(ROB_SIZE // 2))
         rob_full_array[0] = rob_full
         rob_full_array_for_fetcher[0] = (rob_size[0] >= Int(32)(ROB_SIZE - 2))
 
@@ -248,17 +256,17 @@ class ROB(Module):
         rs.async_called(
             rs_write = rs_write,
             rs_modify_recorder = rs_modify_recorder,
-            rob_index = tail_ptr.bitcast(Bits(5)),
+            rob_index = tail_idx.bitcast(Bits(3)),
             signals = signals,
             rs1_value = rf_value_array[rs1],
-            rs1_recorder = rf_recorder_array[rs1],
+            rs1_recorder = rf_recorder_array[rs1].bitcast(Bits(3)),
             rs1_has_recorder = read_mux(rf_has_recorder_array, rs1, 32, 1),
             rs2_value = rf_value_array[rs2],
-            rs2_recorder = rf_recorder_array[rs2],
+            rs2_recorder = rf_recorder_array[rs2].bitcast(Bits(3)),
             rs2_has_recorder = read_mux(rf_has_recorder_array, rs2, 32, 1),
             addr = addr,
             rs_modify_rd = modify_rd,
-            rs_recorder = recorder.bitcast(Bits(5)),
+            rs_recorder = recorder.bitcast(Bits(3)),
             rs_modify_value = modify_value
         )
 
@@ -266,7 +274,7 @@ class ROB(Module):
         lsq.async_called(
             lsq_write = lsq_write,
             lsq_modify_recorder = lsq_modify_recorder,
-            rob_index = tail_ptr.bitcast(Bits(5)),
+            rob_index = tail_idx.bitcast(Bits(5)),
             signals = signals,
             rs1_value = rf_value_array[rs1],
             rs1_recorder = rf_recorder_array[rs1],
@@ -280,12 +288,12 @@ class ROB(Module):
             lsq_modify_value = modify_value
         )
 
-       # for i in range(ROB_SIZE):
-            # log("ROB Entry {}: allocated: {} | ready: {} | pc_addr: 0x{:08x}",
-            #     Bits(5)(i),
-            #     allocated_array[i][0],
-            #     ready_array[i][0],
-            #     addr_array[i]
-            # )
+        for i in range(ROB_SIZE):
+            log("ROB Entry {}: allocated: {} | ready: {} | pc_addr: 0x{:08x}",
+                Bits(5)(i),
+                allocated_array[i][0],
+                ready_array[i][0],
+                addr_array[i]
+            )
 
         return rob_full 

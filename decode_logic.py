@@ -90,6 +90,7 @@ def decode_logic(instruction):
     is_load_or_store = is_load | is_memory_write
     is_offset_branch = is_type[BInstruction] | eqs['jal']
     link_pc = eqs['jalr'] | eqs['jal']
+    is_jalr = eqs['jalr']
     is_pc_calc = eqs['auipc']
 
     rd = rd_valid.select(views[RInstruction].view().rd, Bits(5)(0))
@@ -127,6 +128,7 @@ def decode_logic(instruction):
         is_branch=is_branch,
         is_offset_br=is_offset_branch,
         link_pc=link_pc,
+        is_jalr=is_jalr,
         rs1=rs1,
         rs1_valid=rs1_valid,
         rs2=rs2,

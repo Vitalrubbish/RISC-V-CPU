@@ -290,6 +290,7 @@ decoder_signals = Record(
     is_memory_write = Bits(1),
     is_reg_write = Bits(1),
     is_load_or_store = Bits(1),
+    is_jalr = Bits(1),
 )
 
 supported_types = [RInstruction, IInstruction, BInstruction, UInstruction, JInstruction, SInstruction]

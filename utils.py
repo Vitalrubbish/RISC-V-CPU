@@ -1,8 +1,10 @@
 from assassyn.frontend import *
 
-def write1hot(arrs, index, value):
+def write1hot(arrs, idx_val, value, width = 5):
     for i, arr in enumerate(arrs):
-        with Condition(index.bitcast(Bits(5)) == Bits(5)(i)):
+        # log("idx_val: {} | i: {}", idx_val.bitcast(Bits(width)), Bits(width)(i))
+        with Condition(idx_val.bitcast(Bits(width)) == Bits(width)(i)):
+            # log("write1hot index: {} | value: 0x{:08x}", idx_val, value)
             arr[0] = value
 
 def read_mux(arrs, idx_val, size, width):

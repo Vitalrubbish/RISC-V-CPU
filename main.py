@@ -53,8 +53,7 @@ def init_workspace(base_path, case):
     # cp_if_exists(f'{base_path}/{case}.sh', f'{workspace}/workload.sh', False)
 
 def build_cpu(depth_log: int):
-    init_workspace(f"{current_path}/workloads", "0to100")
-
+    init_workspace(f"{current_path}/workloads", "vector_multiply")
     with open(f'{workspace}/workload.config') as f:
         raw = f.readline()
         raw = raw.replace('offset:', "'offset':").replace('data_offset:', "'data_offset':")
@@ -156,18 +155,19 @@ def build_cpu(depth_log: int):
     print(sys)
     conf = config(
         verilog=utils.has_verilator(),
-        sim_threshold=2000,
-        idle_threshold=2000,
+        sim_threshold=4000,
+        idle_threshold=4000,
         resource_base='',
         fifo_depth=1,
     ) 
 
     simulator_path, verilog_path = elaborate(sys, **conf)
 
-    raw = utils.run_simulator(simulator_path)
-    with open(f'{workspace}/simulation.log', 'w') as f:
+    #raw = utils.run_simulator(simulator_path)
+    raw = utils.run_verilator(verilog_path)
+    with open(f'{workspace}/verilation.log', 'w') as f:
         f.write(raw)
-    print(f"Simulation log saved to {workspace}/simulation.log")
+    print(f"Verilation log saved to {workspace}/verilation.log")
 
 depth_log = 16
 if __name__ == "__main__":
