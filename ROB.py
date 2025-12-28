@@ -27,6 +27,10 @@ class ROB(Module):
         result_array_from_alu: Array,
         pc_result_array_from_alu: Array,
         signal_array_from_alu: Array,
+        rob_index_array_from_mul_alu: Array,
+        result_array_from_mul_alu: Array,
+        pc_result_array_from_mul_alu: Array,
+        signal_array_from_mul_alu: Array,
         rob_index_array_from_lsq: Array,
         result_array_from_lsq: Array,
         pc_result_array_from_lsq: Array,
@@ -39,6 +43,7 @@ class ROB(Module):
         btb_target_array: Array,
         bht_log_size: int
     ):
+        log("signal_array_from_mul_alu: {}", signal_array_from_mul_alu[0])
         rf_value_array = RegArray(Bits(32), 32)
         rf_recorder_array = RegArray(Bits(3), 32)
         rf_has_recorder_array = [RegArray(Bits(1), 1) for _ in range(32)]
@@ -56,6 +61,7 @@ class ROB(Module):
         is_memory_write_array = RegArray(Bits(1), ROB_SIZE)
         is_branch_array = RegArray(Bits(1), ROB_SIZE)
         is_load_or_store_array = RegArray(Bits(1), ROB_SIZE)
+        is_mult_array = RegArray(Bits(1), ROB_SIZE)
         predicted_taken_array = RegArray(Bits(1), ROB_SIZE)
 
         rd_array = RegArray(Bits(5), ROB_SIZE)
@@ -63,6 +69,7 @@ class ROB(Module):
         rs1_array = RegArray(Bits(5), ROB_SIZE)
         rs2_array = RegArray(Bits(5), ROB_SIZE)
         imm_array = RegArray(Bits(32), ROB_SIZE)
+        mul_result_array = RegArray(Bits(32), ROB_SIZE)
         calc_result_array = RegArray(Bits(32), ROB_SIZE)
         load_result_array = RegArray(Bits(32), ROB_SIZE)
         pc_result_array = [RegArray(Bits(32), 1) for _ in range(ROB_SIZE)]
@@ -128,6 +135,7 @@ class ROB(Module):
         rs_modify_recorder = modify_recorder
         lsq_modify_recorder = modify_recorder
         modify_value = is_load_or_store_array[head_idx].select(load_result_array[head_idx], calc_result_array[head_idx])
+        modify_value = is_mult_array[head_idx].select(mul_result_array[head_idx], modify_value)
 
         rs_write = should_receive & ~is_misprediction & (~is_load_or_store)
         lsq_write = should_receive & ~is_misprediction & is_load_or_store
@@ -139,6 +147,7 @@ class ROB(Module):
             is_reg_write_array[tail_idx] = is_reg_write
             addr_array[tail_idx] = addr
             is_load_or_store_array[tail_idx] = is_load_or_store
+            is_mult_array[tail_idx] = signals.is_mult
             write1hot(ready_array, tail_idx, Bits(1)(0))
             is_final_array[tail_idx] = is_final
 
@@ -146,17 +155,27 @@ class ROB(Module):
         write_result_from_alu = signal_array_from_alu[0]
         write_result_from_alu = write_result_from_alu & read_mux(allocated_array, rob_index_from_alu[0:2], ROB_SIZE, 1)
         with Condition(write_result_from_alu):
+            log("Write back from ALU to ROB entry {} | value: 0x{:08x}", rob_index_from_alu[0:2], result_array_from_alu[0])
             calc_result_array[rob_index_from_alu[0:2]] = result_array_from_alu[0]
-            write1hot(pc_result_array, rob_index_from_alu[0:2], pc_result_array_from_alu[0])
-            write1hot(ready_array, rob_index_from_alu[0:2], Bits(1)(1))
+            write1hot(pc_result_array, rob_index_from_alu[0:2], pc_result_array_from_alu[0], width = 3)
+            write1hot(ready_array, rob_index_from_alu[0:2], Bits(1)(1), width = 3)
+
+        rob_index_from_mul_alu = rob_index_array_from_mul_alu[0]
+        write_result_from_mul_alu = signal_array_from_mul_alu[0]
+        write_result_from_mul_alu = write_result_from_mul_alu & read_mux(allocated_array, rob_index_from_mul_alu[0:2], ROB_SIZE, 1)
+        with Condition(write_result_from_mul_alu):
+            log("Write back from MUL ALU to ROB entry {} | value: 0x{:08x}", rob_index_from_mul_alu[0:2], result_array_from_mul_alu[0])
+            mul_result_array[rob_index_from_mul_alu[0:2]] = result_array_from_mul_alu[0]
+            write1hot(pc_result_array, rob_index_from_mul_alu[0:2], pc_result_array_from_mul_alu[0], width = 3)
+            write1hot(ready_array, rob_index_from_mul_alu[0:2], Bits(1)(1), width = 3)
         
         rob_index_from_lsq = rob_index_array_from_lsq[0]
         write_signal_from_lsq = signal_array_from_lsq[0]
         write_result_from_lsq = write_signal_from_lsq & read_mux(allocated_array, rob_index_from_lsq[0:2], ROB_SIZE, 1)
         with Condition(write_result_from_lsq):
             load_result_array[rob_index_from_lsq[0:2]] = result_array_from_lsq[0]
-            write1hot(pc_result_array, rob_index_from_lsq[0:2], pc_result_array_from_lsq[0])
-            write1hot(ready_array, rob_index_from_lsq[0:2], Bits(1)(1))
+            write1hot(pc_result_array, rob_index_from_lsq[0:2], pc_result_array_from_lsq[0], width = 3)
+            write1hot(ready_array, rob_index_from_lsq[0:2], Bits(1)(1), width = 3)
 
         modify_rd = rd_valid_array[head_idx].select(rd_array[head_idx], Bits(5)(0))
         recorder = head_ptr
@@ -261,10 +280,12 @@ class ROB(Module):
             lsq_modify_value = modify_value
         )
         for i in range(ROB_SIZE):
-            log("ROB Entry {}: allocated: {} | ready: {} | pc_addr: 0x{:08x}",
+            log("ROB Entry {}: allocated: {} | ready: {} | calc_result: 0x{:08x} | load_result: 0x{:08x} | pc_addr: 0x{:08x}",
                 Bits(5)(i),
                 allocated_array[i][0],
                 ready_array[i][0],
+                calc_result_array[i],
+                load_result_array[i],
                 addr_array[i]
             )
         log("register value 10: 0x{:08x}", rf_value_array[10])

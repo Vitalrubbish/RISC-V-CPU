@@ -13,6 +13,7 @@ from ROB import *
 from RS import *
 from alu import *
 from lsq import *
+from mul_alu import *
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 workspace = f"{current_path}/.workspace/"
@@ -62,6 +63,11 @@ def build_cpu(depth_log: int):
         pc_result_array_to_alu = RegArray(Bits(32), 1)
         signal_array_to_alu = RegArray(Bits(1), 1)
 
+        rob_index_array_to_mul_alu = RegArray(Bits(3), 1)
+        result_array_to_mul_alu = RegArray(Bits(32), 1)
+        pc_result_array_to_mul_alu = RegArray(Bits(32), 1)
+        signal_array_to_mul_alu = RegArray(Bits(1), 1)
+
         rob_index_array_to_lsq = RegArray(Bits(3), 1)
         pc_result_array_to_lsq = RegArray(Bits(32), 1)
         signal_array_to_lsq = RegArray(Bits(1), 1)
@@ -89,20 +95,29 @@ def build_cpu(depth_log: int):
         alu = ALU()
         rs = RS()
         lsq = LSQ()
+        mul_alu = MUL_ALU()
         dcache = SRAM(width=32, depth = 1<<depth_log, init_file = f"{workspace}/workload.data")
         dcache.name = "dcache"
 
         rob.build(
             rob_full_array=rob_full,
             rob_full_array_for_fetcher=rob_full_for_fetcher,
+            
             rob_index_array_from_alu = rob_index_array_to_alu,
             result_array_from_alu = result_array_to_alu,
             pc_result_array_from_alu = pc_result_array_to_alu,
             signal_array_from_alu = signal_array_to_alu,
+
+            rob_index_array_from_mul_alu = rob_index_array_to_mul_alu,
+            result_array_from_mul_alu = result_array_to_mul_alu,
+            pc_result_array_from_mul_alu = pc_result_array_to_mul_alu,
+            signal_array_from_mul_alu = signal_array_to_mul_alu,
+
             rob_index_array_from_lsq = rob_index_array_to_lsq,
             result_array_from_lsq = dcache.dout,
             pc_result_array_from_lsq = pc_result_array_to_lsq,
             signal_array_from_lsq = signal_array_to_lsq,
+
             reset_pc_addr_array = reset_pc_addr,
             rs = rs,
             lsq = lsq,
@@ -136,6 +151,7 @@ def build_cpu(depth_log: int):
 
         rs.build(
             alu = alu,
+            mul_alu = mul_alu,
             clear_signal_array = clear_signal_array,
         )
         
@@ -144,6 +160,13 @@ def build_cpu(depth_log: int):
             result_array = result_array_to_alu,
             pc_result_array = pc_result_array_to_alu,
             signal_array = signal_array_to_alu
+        )
+
+        mul_alu.build(
+            rob_index_array = rob_index_array_to_mul_alu,
+            result_array = result_array_to_mul_alu,
+            pc_result_array = pc_result_array_to_mul_alu,
+            signal_array = signal_array_to_mul_alu
         )
         
         lsq.build(
@@ -167,6 +190,7 @@ def build_cpu(depth_log: int):
     simulator_path, verilog_path = elaborate(sys, **conf)
 
     raw = utils.run_verilator(verilog_path)
+    # raw = utils.run_simulator(simulator_path)
     with open(f'{workspace}/verilation.log', 'w') as f:
         f.write(raw)
     print(f"Verilation log saved to {workspace}/verilation.log")

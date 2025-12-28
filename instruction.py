@@ -210,6 +210,7 @@ class RV32I_ALU:
     ALU_CMP_LTU = 10
     ALU_TRUE = 11
     ALU_NONE = 15
+    ALU_MUL = 14
 
 supported_opcodes = [
     ("jal", (0b1101111, RV32I_ALU.ALU_ADD, (RV32I_ALU.ALU_TRUE, False)), JInstruction),
@@ -219,6 +220,7 @@ supported_opcodes = [
     ("add", (0b0110011, 0b000, 0b0000000, RV32I_ALU.ALU_ADD), RInstruction),
     ("sub", (0b0110011, 0b000, 0b0100000, RV32I_ALU.ALU_SUB), RInstruction),
     ("or", (0b0110011, 0b110, 0b0000000, RV32I_ALU.ALU_OR), RInstruction),
+    ("mul", (0b0110011, 0b000, 0b0000001, RV32I_ALU.ALU_MUL), RInstruction),
 
     ("jalr", (0b1100111, 0b000, RV32I_ALU.ALU_ADD, (RV32I_ALU.ALU_TRUE, False), None, None), IInstruction),
     ("addi", (0b0010011, 0b000, RV32I_ALU.ALU_ADD, None, None, None), IInstruction),
@@ -291,6 +293,7 @@ decoder_signals = Record(
     is_reg_write = Bits(1),
     is_load_or_store = Bits(1),
     is_jalr = Bits(1),
+    is_mult = Bits(1),
 )
 
 supported_types = [RInstruction, IInstruction, BInstruction, UInstruction, JInstruction, SInstruction]
