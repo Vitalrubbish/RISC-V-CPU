@@ -93,6 +93,9 @@ def decode_logic(instruction):
     is_jalr = eqs['jalr']
     is_pc_calc = eqs['auipc']
     is_mult = (alu == Bits(RV32I_ALU.CNT)(1 << RV32I_ALU.ALU_MUL))
+    get_high_bit = eqs['mulh'] | eqs['mulhu'] | eqs['mulhsu']
+    rs1_sign = eqs['mulh'] | eqs['mulhsu']
+    rs2_sign = eqs['mulh']
 
     rd = rd_valid.select(views[RInstruction].view().rd, Bits(5)(0))
     rs1 = rs1_valid.select(views[RInstruction].view().rs1, Bits(5)(0))
@@ -145,5 +148,8 @@ def decode_logic(instruction):
         is_zimm = is_zimm,
         is_mepc = is_mepc,
         mem_ext = mem_ext,
-        is_mult = is_mult
+        is_mult = is_mult,
+        get_high_bit = get_high_bit,
+        rs1_sign = rs1_sign,
+        rs2_sign = rs2_sign
     )

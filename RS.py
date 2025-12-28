@@ -61,6 +61,9 @@ class RS(Module):
         flip_array = RegArray(Bits(1), RS_SIZE)
         is_branch_array = RegArray(Bits(1), RS_SIZE)
         addr_array = RegArray(Bits(32), RS_SIZE)
+        get_high_bit_array = RegArray(Bits(1), RS_SIZE)
+        rs1_sign_array = RegArray(Bits(1), RS_SIZE)
+        rs2_sign_array = RegArray(Bits(1), RS_SIZE)
                                   
         (
             rs_write,
@@ -114,6 +117,9 @@ class RS(Module):
             cond_array[rob_index] = signals.cond
             flip_array[rob_index] = signals.flip
             is_branch_array[rob_index] = signals.is_branch
+            get_high_bit_array[rob_index] = signals.get_high_bit
+            rs1_sign_array[rob_index] = signals.rs1_sign
+            rs2_sign_array[rob_index] = signals.rs2_sign
             write1hot(allocated_array, rob_index, Bits(1)(1))
 
         send_index = Bits(3)(0)
@@ -183,7 +189,10 @@ class RS(Module):
             alu_b = mul_alu_b,
             calc_type = send_to_mul.select(alu_type_array[send_index_to_mul], Bits(RV32I_ALU.CNT)(1 << RV32I_ALU.ALU_NONE)),
             pc_addr = addr_array[send_index_to_mul],
-            clear = clear_signal_array[0]
+            get_high_bit = get_high_bit_array[send_index_to_mul],
+            rs1_sign = rs1_sign_array[send_index_to_mul],
+            rs2_sign = rs2_sign_array[send_index_to_mul],
+            clear = clear_signal_array[0],
         )
 
         with Condition(rs_modify_recorder):

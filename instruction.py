@@ -221,6 +221,9 @@ supported_opcodes = [
     ("sub", (0b0110011, 0b000, 0b0100000, RV32I_ALU.ALU_SUB), RInstruction),
     ("or", (0b0110011, 0b110, 0b0000000, RV32I_ALU.ALU_OR), RInstruction),
     ("mul", (0b0110011, 0b000, 0b0000001, RV32I_ALU.ALU_MUL), RInstruction),
+    ("mulh", (0b0110011, 0b001, 0b0000001, RV32I_ALU.ALU_MUL), RInstruction),
+    ("mulhu", (0b0110011, 0b011, 0b0000001, RV32I_ALU.ALU_MUL), RInstruction),
+    ("mulhsu", (0b0110011, 0b010, 0b0000001, RV32I_ALU.ALU_MUL), RInstruction),
 
     ("jalr", (0b1100111, 0b000, RV32I_ALU.ALU_ADD, (RV32I_ALU.ALU_TRUE, False), None, None), IInstruction),
     ("addi", (0b0010011, 0b000, RV32I_ALU.ALU_ADD, None, None, None), IInstruction),
@@ -294,6 +297,9 @@ decoder_signals = Record(
     is_load_or_store = Bits(1),
     is_jalr = Bits(1),
     is_mult = Bits(1),
+    get_high_bit = Bits(1), # 乘法指令中，是否获取高 32 位
+    rs1_sign = Bits(1), # 记录 rs1 到底是有符号还是无符号，乘法的时候有用
+    rs2_sign = Bits(1)  # 记录 rs2 到底是有符号还是无符号，乘法的时候有用
 )
 
 supported_types = [RInstruction, IInstruction, BInstruction, UInstruction, JInstruction, SInstruction]
