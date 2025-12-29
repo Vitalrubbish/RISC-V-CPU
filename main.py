@@ -45,7 +45,7 @@ def init_workspace(base_path, case):
     cp_if_exists(f'{base_path}/{case}.config', f'{workspace}/workload.config', False)
 
 def build_cpu(depth_log: int):
-    init_workspace(f"{current_path}/workloads", "multiply")
+    init_workspace(f"{current_path}/workloads", "tak")
     with open(f'{workspace}/workload.config') as f:
         raw = f.readline()
         raw = raw.replace('offset:', "'offset':").replace('data_offset:', "'data_offset':")
@@ -71,6 +71,7 @@ def build_cpu(depth_log: int):
         rob_index_array_to_lsq = RegArray(Bits(3), 1)
         pc_result_array_to_lsq = RegArray(Bits(32), 1)
         signal_array_to_lsq = RegArray(Bits(1), 1)
+        memory_place_array = RegArray(Bits(2), 1)
 
         clear_signal_array = RegArray(Bits(1), 1)
         reset_pc_addr = RegArray(Bits(32), 1)
@@ -117,6 +118,7 @@ def build_cpu(depth_log: int):
             result_array_from_lsq = dcache.dout,
             pc_result_array_from_lsq = pc_result_array_to_lsq,
             signal_array_from_lsq = signal_array_to_lsq,
+            memory_place_array = memory_place_array,
 
             reset_pc_addr_array = reset_pc_addr,
             rs = rs,
@@ -176,21 +178,22 @@ def build_cpu(depth_log: int):
             pc_result_array = pc_result_array_to_lsq,
             signal_array = signal_array_to_lsq,
             clear_signal_array = clear_signal_array,
+            memory_place_array = memory_place_array
         )
     
     print(sys)
     conf = config(
         verilog=utils.has_verilator(),
-        sim_threshold=4000,
-        idle_threshold=4000,
+        sim_threshold=7000000,
+        idle_threshold=7000000,
         resource_base='',
         fifo_depth=1,
     ) 
 
     simulator_path, verilog_path = elaborate(sys, **conf)
 
-    raw = utils.run_verilator(verilog_path)
-    # raw = utils.run_simulator(simulator_path)
+    # raw = utils.run_verilator(verilog_path)
+    raw = utils.run_simulator(simulator_path)
     with open(f'{workspace}/verilation.log', 'w') as f:
         f.write(raw)
     print(f"Verilation log saved to {workspace}/verilation.log")

@@ -69,8 +69,8 @@ def decode_logic(instruction):
             fmt = fmt + "|imm: 0x{:x}"
             args.append(imm)
 
-        with Condition(eq):
-            log(fmt, *args)
+        # with Condition(eq):
+        #    log(fmt, *args)
 
     with Condition(~supported):
         view = views[RInstruction].view()
@@ -96,6 +96,8 @@ def decode_logic(instruction):
     get_high_bit = eqs['mulh'] | eqs['mulhu'] | eqs['mulhsu']
     rs1_sign = eqs['mulh'] | eqs['mulhsu']
     rs2_sign = eqs['mulh']
+    memory_length = eqs['lbu'].select(Bits(2)(0), Bits(2)(2)) # 00: byte, 01: half, 10: word
+    
 
     rd = rd_valid.select(views[RInstruction].view().rd, Bits(5)(0))
     rs1 = rs1_valid.select(views[RInstruction].view().rs1, Bits(5)(0))
@@ -151,5 +153,6 @@ def decode_logic(instruction):
         is_mult = is_mult,
         get_high_bit = get_high_bit,
         rs1_sign = rs1_sign,
-        rs2_sign = rs2_sign
+        rs2_sign = rs2_sign,
+        memory_length = memory_length,
     )

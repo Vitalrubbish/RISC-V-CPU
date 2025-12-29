@@ -20,9 +20,8 @@ class LSQ(Module):
             "rs2_has_recorder": Port(Bits(1)),
             "addr": Port(Bits(32)),
             "lsq_modify_rd": Port(Bits(5)),
-            "lsq_recorder": Port(Bits(5)),
-            "lsq_modify_value": Port(Bits(32)),
-        })
+            "lsq_recorder": Port(Bits(3)),
+            "lsq_modify_value": Port(Bits(32)),            "rob_head_index": Port(Bits(3)),        })
         self.name = "LSQ"
 
     @module.combinational
@@ -34,6 +33,7 @@ class LSQ(Module):
         pc_result_array: Array,
         signal_array: Array,
         clear_signal_array: Array,
+        memory_place_array: Array,
     ):
         # 这是一个顺序执行的用于处理 load/store 指令的模块
 
@@ -74,7 +74,8 @@ class LSQ(Module):
             addr,
             lsq_modify_rd,
             lsq_recorder,
-            lsq_modify_value
+            lsq_modify_value,
+            rob_head_index
         ) = self.pop_all_ports(True)
 
         rs1_coincidence = rs1_has_recorder & (rs1_recorder == lsq_recorder) & lsq_modify_recorder
@@ -85,9 +86,9 @@ class LSQ(Module):
         rs2_has_recorder = rs2_coincidence.select(Bits(1)(0), rs2_has_recorder)
         rs2_value = rs2_coincidence.select(lsq_modify_value, rs2_value)
 
-        with Condition(lsq_write & (~clear_signal_array[0])):
-            log("rob_index: {} | rs1_value: 0x{:08x} | rs1_recorder: {} | rs1_has_recorder: {} | rs2_value: 0x{:08x} | rs2_recorder: {} | rs2_has_recorder: {} | addr: 0x{:08x}",
-                rob_index, rs1_value, rs1_recorder, rs1_has_recorder, rs2_value, rs2_recorder, rs2_has_recorder, addr)
+        # with Condition(lsq_write & (~clear_signal_array[0])):
+        #    log("rob_index: {} | rs1_value: 0x{:08x} | rs1_recorder: {} | rs1_has_recorder: {} | rs2_value: 0x{:08x} | rs2_recorder: {} | rs2_has_recorder: {} | addr: 0x{:08x}",
+        #        rob_index, rs1_value, rs1_recorder, rs1_has_recorder, rs2_value, rs2_recorder, rs2_has_recorder, addr)
 
 
         lsq_write = lsq_write & (~clear_signal_array[0])
@@ -107,7 +108,7 @@ class LSQ(Module):
 
         write_valid = lsq_write & ~lsq_full
         with Condition(lsq_write & ~lsq_full):
-            log("LSQ entry {} allocated", tail_ptr)
+            # log("LSQ entry {} allocated", tail_ptr)
             write1hot(allocated_array, tail_idx, Bits(1)(1))
             rob_index_array[tail_idx] = rob_index
             is_load_array[tail_idx] = signals.memory[0:0]
@@ -145,20 +146,25 @@ class LSQ(Module):
         dcache_we = is_memory_write
         dcache_re = is_memory_read
         dcache_addr = request_addr
+        memory_place_array[0] = alu_result.bitcast(Bits(32))[0:1] # load_byte 的时候需要确定是加载哪个字节
         dcache_wdata = read_mux(rs2_value_array, head_idx, LSQ_SIZE, 32)
 
-        execute_valid = read_mux(allocated_array, head_idx, LSQ_SIZE, 1) & read_mux(ready_array, head_idx, LSQ_SIZE, 1) & (~clear_signal_array[0])
-        log("head_idx: {} | allocated: {} | ready: {}", head_idx, read_mux(allocated_array, head_idx, LSQ_SIZE, 1), read_mux(ready_array, head_idx, LSQ_SIZE, 1))
+        is_store = is_store_array[head_idx]
+        rob_idx_of_head = rob_index_array[head_idx]
+        can_execute_store = (rob_idx_of_head == rob_head_index)
+        condition_met = (~is_store) | (is_store & can_execute_store)
+
+        execute_valid = read_mux(allocated_array, head_idx, LSQ_SIZE, 1) & read_mux(ready_array, head_idx, LSQ_SIZE, 1) & (~clear_signal_array[0]) & condition_met
+        # log("head_idx: {} | allocated: {} | ready: {}", head_idx, read_mux(allocated_array, head_idx, LSQ_SIZE, 1), read_mux(ready_array, head_idx, LSQ_SIZE, 1))
         with Condition(execute_valid):
             # 执行 head 指向的条目
-            log("LSQ entry {} executed", head_ptr)
+            #log("LSQ entry {} executed", head_ptr)
 
             write1hot(allocated_array, head_idx, Bits(1)(0))
             head[0] = (head_ptr + Int(32)(1) == Int(32)(LSQ_SIZE)).select(Int(32)(0), head_ptr + Int(32)(1))
-
         dcache.build(we = dcache_we & execute_valid, re = dcache_re & execute_valid, addr = dcache_addr, wdata = dcache_wdata)
-        with Condition(dcache_we & execute_valid | dcache_re & execute_valid):
-            log("DCACHE | we: {} | re: {} | addr: 0x{:08x}", dcache_we & execute_valid, dcache_re & execute_valid, dcache_addr)
+        # with Condition(dcache_we & execute_valid | dcache_re & execute_valid):
+        #     log("DCACHE | we: {} | re: {} | wdata: 0x{:08x} | addr: 0x{:08x} | pc_addr: 0x{:08x}", dcache_we & execute_valid, dcache_re & execute_valid, dcache_wdata, dcache_addr, addr_array[0])
 
         with Condition(lsq_modify_recorder):
             for i in range(LSQ_SIZE):
@@ -188,8 +194,7 @@ class LSQ(Module):
 
         rob_index_array_ret[0] = rob_index_array[head_idx]
         pc_result_array[0] = (addr_array[head_idx].bitcast(Int(32)) + Int(32)(4)).bitcast(Bits(32))
-        is_head_ready = read_mux(allocated_array, head_idx, LSQ_SIZE, 1) & read_mux(ready_array, head_idx, LSQ_SIZE, 1)
-        signal_array[0] = is_head_ready.select(Bits(1)(1), Bits(1)(0))
+        signal_array[0] = execute_valid.select(Bits(1)(1), Bits(1)(0))
         
         with Condition(~clear_signal_array[0]):
             lsq_size[0] = lsq_size[0] + write_valid.select(Int(32)(1), Int(32)(0)) - execute_valid.select(Int(32)(1), Int(32)(0))

@@ -37,7 +37,7 @@ class FetcherImpl(Downstream):
     ):
         local_pc_addr = pc_addr.bitcast(Bits(32))
 
-        bht_index = local_pc_addr[2 : 2 + bht_log_size].bitcast(Bits(6))
+        bht_index = local_pc_addr[2 : 2 + bht_log_size - 1].bitcast(Bits(6))
         current_state = bht_array[bht_index]
         should_branch = current_state[1:1] 
         predicted_target = btb_target_array[bht_index]
@@ -48,13 +48,14 @@ class FetcherImpl(Downstream):
         clear = clear_signal_array[0]
         fetch_valid = (~rob_full_array[0]) & (~clear)
 
-        log("fetch_valid : {} | addr: 0x{:05x} | pred_taken: {} | next_pc: 0x{:05x}", 
-            fetch_valid, local_pc_addr, should_branch, next_pc_pred)
+        # log("fetch_valid : {} | addr: 0x{:05x} | pred_taken: {} | next_pc: 0x{:05x}", 
+        #    fetch_valid, local_pc_addr, should_branch, next_pc_pred)
 
         decoder.async_called(
             receive = fetch_valid, 
             fetch_addr = local_pc_addr,
-            predicted_taken = should_branch
+            predicted_taken = should_branch,
+            pred_next_pc = next_pc_pred
         )
         
         with Condition(fetch_valid & (~clear)):

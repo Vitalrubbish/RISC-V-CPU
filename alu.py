@@ -88,8 +88,8 @@ class ALU(Module):
         pc_result_array[0] = new_pc
         signal_array[0] = valid
 
-        with Condition(valid):
-            log("a: 0x{:08x} | b: 0x{:08x} | alu_a: 0x{:08x} | alu_b: 0x{:08x} | result: 0x{:08x} | cond: 0x{:08x} | pc: 0x{:08x} | new_pc: 0x{:08x}",
-            a, b, alu_a, alu_b, result, cond, pc_addr, new_pc)
+        # with Condition(valid):
+        #    log("a: 0x{:08x} | b: 0x{:08x} | alu_a: 0x{:08x} | alu_b: 0x{:08x} | result: 0x{:08x} | cond: 0x{:08x} | pc: 0x{:08x} | new_pc: 0x{:08x}",
+        #        a, b, alu_a, alu_b, result, cond, pc_addr, new_pc)
 
         
